@@ -1,4 +1,3 @@
-process.stdout.write('\uFEFF'); // optionaler BOM-Test
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
