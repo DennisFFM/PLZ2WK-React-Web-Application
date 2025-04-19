@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--map", action="store_true", help="PLZ-Wahlkreis-Zuordnung durchführen")
     parser.add_argument("--generate", action="store_true", help="CSV-Dateien für Wahlen generieren")
     parser.add_argument("--all", action="store_true", help="Alle Schritte durchführen: convert + map + generate")
-    parser.add_argument("--only", type=str, help="Nur eine bestimmte Wahl verarbeiten, z. B. 'btw2025' oder 'ltw2026_nrw'")
+    parser.add_argument("--only", type=str, help="Nur eine bestimmte Wahl verarbeiten, z.B. 'btw2025' oder 'ltw2026_nrw'")
     parser.add_argument("--force", action="store_true", help="Erzwingt die Verarbeitung auch bei vorhandenen Dateien")
     parser.add_argument("--verbose", action="store_true", help="Ausgabe zusätzlich auf die Konsole schreiben")
 
