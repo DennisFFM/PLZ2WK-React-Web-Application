@@ -1,0 +1,13 @@
+node_modules/
+*.dbf
+*.geojson
+*.prj
+*.sbn
+*.sbx
+*.shp
+*.shp.xml
+*.shx
+*.cpg
+*.pyc
+*.log
+wahldateien.csv
