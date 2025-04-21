@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as turf from '@turf/turf';
+import LRU from 'lru-cache';
+import simplify from '@turf/simplify';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,7 +17,16 @@ app.use(express.json());
 
 const DATA_ROOT = path.resolve(__dirname, 'data');
 
-// ✅ Liste verfügbarer Wahlen aus CSV-Datei
+// 🔁 LRU-Caches
+const plzCache = new LRU({ max: 100 });
+const wahlCache = new LRU({ max: 100 });
+
+// 📏 BBOX normalisieren
+function normalizeBbox(bboxArray, digits = 0) {
+  return bboxArray.map(num => Number(num.toFixed(digits)));
+}
+
+// ✅ /api/wahlen
 app.get('/api/wahlen', (req, res) => {
   const filePath = path.join(DATA_ROOT, 'wahldateien.csv');
   fs.readFile(filePath, 'utf8', (err, data) => {
@@ -32,7 +43,7 @@ app.get('/api/wahlen', (req, res) => {
           label: rawLabel
         };
       });
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json(parsed);
   });
 });
@@ -59,7 +70,6 @@ app.get('/api/mapping', (req, res) => {
     const json = JSON.parse(content);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json(json);
-    console.log('🔍 JSON-Inhalt, erste Zeile:', json.features[1].properties.wahlkreis);
   } catch (err) {
     console.error('❗ Fehler beim Parsen:', err);
     res.status(500).json({ error: 'Fehler beim Verarbeiten der Datei' });
@@ -140,7 +150,78 @@ app.get('/api/file', (req, res) => {
   });
 });
 
-// ✅ EINZIGER Startpunkt
+// ✅ /api/plz_bbox
+app.get('/api/plz_bbox', (req, res) => {
+  const bboxParam = req.query.bbox;
+  if (!bboxParam) return res.status(400).json({ error: 'bbox fehlt' });
+
+  const bbox = normalizeBbox(bboxParam.split(',').map(parseFloat));
+  const bboxKey = bbox.join(',');
+
+  if (plzCache.has(bboxKey)) {
+    console.log('📦 [CACHE HIT] PLZ:', bboxKey);
+    return res.json(plzCache.get(bboxKey));
+  }
+
+  const filePath = path.join(DATA_ROOT, 'plz/PLZ_Gebiete_2313071530551189147.geojson');
+  try {
+    const full = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const bboxPolygon = turf.bboxPolygon(bbox);
+
+    const filtered = full.features.filter(f => turf.booleanIntersects(f, bboxPolygon));
+
+    const simplified = filtered.map(f =>
+      simplify(f, { tolerance: 0.001, highQuality: false })
+    );
+
+    const result = { type: 'FeatureCollection', features: simplified };
+
+    plzCache.set(bboxKey, result);
+    console.log('📦 [CACHE MISS] PLZ – gespeichert:', bboxKey);
+    res.json(result);
+  } catch (err) {
+    console.error('Fehler beim BBOX-Filtern:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+
+// ✅ /api/wahl_bbox
+app.get('/api/wahl_bbox', (req, res) => {
+  const { path: rawPath, bbox: bboxParam } = req.query;
+  if (!rawPath || !bboxParam) return res.status(400).json({ error: 'Pfad und bbox erforderlich' });
+
+  const bbox = normalizeBbox(bboxParam.split(',').map(parseFloat));
+  const cacheKey = `${rawPath}|${bbox.join(',')}`;
+
+  if (wahlCache.has(cacheKey)) {
+    console.log('📦 [CACHE HIT] Wahl:', cacheKey);
+    return res.json(wahlCache.get(cacheKey));
+  }
+
+  const filePath = path.join(DATA_ROOT, rawPath.replace(/^data[\\/]/, ''));
+  try {
+    const geo = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const bboxPolygon = turf.bboxPolygon(bbox);
+
+    const filtered = geo.features.filter(f => turf.booleanIntersects(f, bboxPolygon));
+
+    const simplified = filtered.map(f =>
+      simplify(f, { tolerance: 0.001, highQuality: false })
+    );
+
+    const result = { type: 'FeatureCollection', features: simplified };
+
+    wahlCache.set(cacheKey, result);
+    console.log('📦 [CACHE MISS] Wahl – gespeichert:', cacheKey);
+    res.json(result);
+  } catch (err) {
+    console.error('Fehler beim Wahlkreis-BBOX:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Datei' });
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`🚀 Server läuft unter http://localhost:${PORT}`);
 });

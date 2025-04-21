@@ -94,6 +94,7 @@ def map_wahlkreis_to_plz(wahl_path, output_path, wk_name_key, wk_nr_key, logger)
                             }
                         })
                     break
+                logger.debug(f"➕ PLZ {plz_code} trifft Wahlkreis {wk_row.get(wk_name_key)}")
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, 'w', encoding='utf-8', errors='replace') as f:
