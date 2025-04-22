@@ -13,4 +13,5 @@ https://statistik.hessen.de/sites/statistik.hessen.de/files/2024-08/hsl_landtags
 
 ## Postleitzahlen Shapefiles / GeoJSON
 https://stg-arcgisazurecdataprod2.az.arcgis.com/exportfiles-23163-5613/PLZ_Gebiete_2313071530551189147.geojson
+https://services2.arcgis.com/jUpNdisbWqRpMo35/arcgis/rest/services/PLZ_Gebiete/FeatureServer/replicafilescache/PLZ_Gebiete_2313071530551189147.geojson
 https://stg-arcgisazurecdataprod2.az.arcgis.com/exportfiles-23163-5613/PLZ_Gebiete_-6414732440474739110.zip

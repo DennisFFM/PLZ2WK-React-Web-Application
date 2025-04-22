@@ -1,7 +1,7 @@
 [
   {
     "name": "PLZ-Gebiete",
-    "url": "https://stg-arcgisazurecdataprod2.az.arcgis.com/exportfiles-23163-5613/PLZ_Gebiete_-6414732440474739110.zip",
+    "url": "https://services2.arcgis.com/jUpNdisbWqRpMo35/arcgis/rest/services/PLZ_Gebiete/FeatureServer/replicafilescache/PLZ_Gebiete_2313071530551189147.geojson",
     "type": "geojson",
     "output": "www/server/data/plz/plz.geojson"
   },
