@@ -71,6 +71,7 @@ app.get('/api/wahlen', (req, res) => {
 
     const options = geodataSources
       .filter(entry => {
+        if (entry.name === 'PLZ-Gebiete') return false; // PLZ-Gebiete nicht anzeigen
         const absPath = path.resolve(process.cwd(), entry.output); // Datei prüfen mit absolutem Pfad
         const exists = fs.existsSync(absPath);
         console.log(`📂 Prüfe ${entry.name}: ${absPath} → ${exists ? '✅' : '❌'}`);
