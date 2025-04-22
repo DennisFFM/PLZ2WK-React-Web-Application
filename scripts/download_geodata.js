@@ -8,7 +8,7 @@ import shp from 'shpjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const SOURCE_PATH = path.resolve(__dirname, '../geodata_source.json');
+const SOURCE_PATH = path.resolve(__dirname, '../geodata_sources.json');
 
 async function ensureDirExists(filePath) {
   const dir = path.dirname(filePath);

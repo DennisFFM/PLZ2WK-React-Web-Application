@@ -1,6 +1,7 @@
 {
     "name": "plz2wk-monorepo",
     "private": true,
+    "type": "module",
     "workspaces": [
         "www/frontend",
         "www/server"
@@ -9,6 +10,7 @@
         "dev": "concurrently \"npm --prefix www/frontend run dev\" \"npm --prefix www/server run dev\"",
         "build": "npm --prefix www/frontend run build",
         "download_geodata": "node scripts/download_geodata.js",
+        "update": "git pull origin main && npm install && npm run download_geodata && npm run build",
         "postinstall": "npm run download_geodata"
     },
     "devDependencies": {
