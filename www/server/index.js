@@ -24,29 +24,17 @@ const GEODATA_SOURCES = JSON.parse(
 );
 
 // Hilfsfunktion: Liefert absoluten Pfad zu einer GeoJSON-Datei anhand ihres Namens
-function resolveGeoJsonRequestPath(rawPath, { mustExist = false, throwOnMissing = false } = {}) {
-  const relativePath = rawPath.startsWith('data/')
-    ? rawPath.slice('data/'.length)
-    : rawPath;
-
-  const fullPath = path.resolve(process.cwd(), 'www/server', relativePath);
-
-  if (mustExist && !fs.existsSync(fullPath)) {
-    const msg = `❌ Datei nicht gefunden: ${fullPath}`;
-    if (throwOnMissing) {
-      throw new Error(msg);
-    } else {
-      console.warn(msg);
-      return null;
-    }
-  }
-
-  return fullPath;
+function getGeojsonPathByName(name) {
+  const entry = GEODATA_SOURCES.find(e => e.name === name);
+  if (!entry || !entry.output) return null;
+  return path.resolve(process.cwd(), entry.output);
 }
 
-
-
-
+function resolveGeoJsonRequestPath(rawPath) {
+  // Entferne führendes 'data/' oder 'data\' aus dem Pfad
+  const cleanedPath = rawPath.replace(/^data[\\/]/, '');
+  return path.resolve(process.cwd(), 'www/server/data', cleanedPath);
+}
 
 
 app.use(morgan('combined', { stream: logStream }));
@@ -94,7 +82,7 @@ app.get('/api/wahlen', (req, res) => {
       })
       .map(entry => ({
         // Der Wert fürs Frontend wird relativ zu www/server/data/... gemacht
-        value: entry.output.replace(/^www\/server[\\/]/, 'data/'),
+        value: entry.output.replace(/^www[\\\/]server[\\\/]data[\\\/]/, 'data/'),
         label: entry.name
       }));
 
@@ -241,6 +229,12 @@ app.get('/api/plz_bbox', (req, res) => {
 // ✅ /api/wahl_bbox
 app.get('/api/wahl_bbox', (req, res) => {
   const { path: rawPath, bbox: bboxParam } = req.query;
+  console.log('📥 [API] wahl_bbox rawPath:', rawPath);
+  const cleaned = rawPath.replace(/^data[\\/]/, '');
+  console.log('🧪 [API] nach clean:', cleaned);
+
+  const filePath = path.resolve(process.cwd(), 'www/server/data', cleaned);
+  console.log('📁 [API] resolved:', filePath);
   if (!rawPath || !bboxParam) return res.status(400).json({ error: 'Pfad und bbox erforderlich' });
 
   const bbox = normalizeBbox(bboxParam.split(',').map(parseFloat));
@@ -251,8 +245,7 @@ app.get('/api/wahl_bbox', (req, res) => {
   }
 
   try {
-    const filePath = resolveGeoJsonRequestPath(rawPath, { mustExist: true, throwOnMissing: true });
-
+    const filePath = resolveGeoJsonRequestPath(rawPath);
     const geo = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     const bboxPolygon = turf.bboxPolygon(bbox);
 
