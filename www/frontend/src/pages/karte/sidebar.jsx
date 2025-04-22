@@ -19,7 +19,7 @@ export default function KarteMitSidebar() {
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const res = await fetch('http://localhost:3001/api/wahlen');
+        const res = await fetch('/api/wahlen');
         const json = await res.json();
         setWahlOptions(json);
       } catch (err) {
@@ -40,7 +40,7 @@ export default function KarteMitSidebar() {
             id="wahl-select"
             value={wahlPath}
             onChange={(e) => setWahlPath(e.target.value)}
-            className="block w-full p-2 border rounded shadow-sm bg-white"
+            className="block w-full p-2 border rounded shadow-sm bg-white text-black"
           >
             <option value="">Bitte wählen...</option>
             {wahlOptions.map((opt, i) => (

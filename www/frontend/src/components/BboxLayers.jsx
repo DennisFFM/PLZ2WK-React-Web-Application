@@ -41,7 +41,7 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
 
     if (showPlzRef.current) {
       const key = `plz|${bbox}`;
-      fetchGeoJson(key, `http://localhost:3001/api/plz_bbox?bbox=${bbox}`).then((geojson) => {
+      fetchGeoJson(key, `/api/plz_bbox?bbox=${bbox}`).then((geojson) => {
         const newFeatures = geojson.features.filter(f => {
           const hash = featureKey(f);
           if (plzSeen.current.has(hash)) return false;
@@ -54,7 +54,7 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
 
     if (showWahlRef.current) {
       const key = `wahl|${wahlPath}|${bbox}`;
-      fetchGeoJson(key, `http://localhost:3001/api/wahl_bbox?path=${wahlPath}&bbox=${bbox}`).then((geojson) => {
+      fetchGeoJson(key, `/api/wahl_bbox?path=${wahlPath}&bbox=${bbox}`).then((geojson) => {
         const newFeatures = geojson.features.filter(f => {
           const hash = featureKey(f);
           if (wahlSeen.current.has(hash)) return false;

@@ -4,8 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as turf from '@turf/turf';
-import LRU from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 import simplify from '@turf/simplify';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,8 +19,8 @@ app.use(express.json());
 const DATA_ROOT = path.resolve(__dirname, 'data');
 
 // 🔁 LRU-Caches
-const plzCache = new LRU({ max: 100 });
-const wahlCache = new LRU({ max: 100 });
+const plzCache = new LRUCache({ max: 100 });
+const wahlCache = new LRUCache({ max: 100 });
 
 // 📏 BBOX normalisieren
 function normalizeBbox(bboxArray, digits = 0) {

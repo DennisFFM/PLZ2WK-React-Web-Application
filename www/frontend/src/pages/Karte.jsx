@@ -11,7 +11,7 @@ export default function Karte() {
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const res = await fetch('http://localhost:3001/api/wahlen');
+        const res = await fetch('/api/wahlen');
         const data = await res.json();
         setOptions(data);
       } catch (err) {
@@ -27,7 +27,7 @@ export default function Karte() {
 
     const loadGeo = async () => {
       try {
-        const res = await fetch(`http://localhost:3001/api/mapping?path=${encodeURIComponent(selected)}`);
+        const res = await fetch(`/api/mapping?path=${encodeURIComponent(selected)}`);
         const json = await res.json();
         setGeoData(json);
 

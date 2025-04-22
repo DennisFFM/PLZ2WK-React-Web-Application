@@ -13,7 +13,7 @@ export default function Mapping() {
   useEffect(() => {
     const loadOptionsFromApi = async () => {
       try {
-        const res = await fetch('http://localhost:3001/api/wahlen');
+        const res = await fetch('/api/wahlen');
         const json = await res.json();
         setOptions(json);
       } catch (err) {
@@ -35,7 +35,7 @@ export default function Mapping() {
       console.time('📥 Mapping geladen');
 
       try {
-        const res = await fetch(`http://localhost:3001/api/mapping?path=${encodeURIComponent(cleaned)}`);
+        const res = await fetch(`/api/mapping?path=${encodeURIComponent(cleaned)}`);
 
         if (!res.ok) {
           const errorText = await res.text();

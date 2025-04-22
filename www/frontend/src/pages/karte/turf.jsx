@@ -13,14 +13,14 @@ export default function KarteMitTurf() {
   const wahlRef = useRef(null);
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/mapping?path=bundestagswahlen/2025/btw25_geometrie_wahlkreise_vg250_shp_geo.geojson')
+    fetch('/api/mapping?path=bundestagswahlen/2025/btw25_geometrie_wahlkreise_vg250_shp_geo.geojson')
       .then((res) => res.json())
       .then((json) => {
         setWahlGeo(json);
         wahlRef.current = json;
       });
 
-    fetch('http://localhost:3001/api/file?path=plz/PLZ_Gebiete_2313071530551189147.geojson')
+    fetch('/api/file?path=plz/PLZ_Gebiete_2313071530551189147.geojson')
       .then((res) => res.json())
       .then((json) => {
         setPlzGeo(json);
