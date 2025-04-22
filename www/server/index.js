@@ -6,13 +6,16 @@ import { fileURLToPath } from 'url';
 import * as turf from '@turf/turf';
 import { LRUCache } from 'lru-cache';
 import simplify from '@turf/simplify';
-
+import morgan from 'morgan';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3001;
+const LOG_DIR = path.resolve(__dirname, '../log');
+const logStream = fs.createWriteStream(path.join(LOG_DIR, 'server.log'), { flags: 'a' });
 
+app.use(morgan('combined', { stream: logStream }));
 app.use(cors());
 app.use(express.json());
 
@@ -26,6 +29,17 @@ const wahlCache = new LRUCache({ max: 100 });
 function normalizeBbox(bboxArray, digits = 0) {
   return bboxArray.map(num => Number(num.toFixed(digits)));
 }
+
+// Logging Endpoint
+
+app.post('/api/frontend-log', (req, res) => {
+  const { level, args, time } = req.body;
+  const line = `[${time}] [${level.toUpperCase()}] ${args.join(' ')}\n`;
+  fs.appendFile(path.join(LOG_DIR, 'frontend.log'), line, (err) => {
+    if (err) console.error('Fehler beim Schreiben ins Frontend-Log:', err);
+  });
+  res.status(200).send('OK');
+});
 
 // ✅ /api/wahlen
 app.get('/api/wahlen', (req, res) => {
@@ -178,7 +192,6 @@ app.get('/api/plz_bbox', (req, res) => {
     const result = { type: 'FeatureCollection', features: simplified };
 
     plzCache.set(bboxKey, result);
-    console.log('📦 [CACHE MISS] PLZ – gespeichert:', bboxKey);
     res.json(result);
   } catch (err) {
     console.error('Fehler beim BBOX-Filtern:', err);
@@ -214,7 +227,6 @@ app.get('/api/wahl_bbox', (req, res) => {
     const result = { type: 'FeatureCollection', features: simplified };
 
     wahlCache.set(cacheKey, result);
-    console.log('📦 [CACHE MISS] Wahl – gespeichert:', cacheKey);
     res.json(result);
   } catch (err) {
     console.error('Fehler beim Wahlkreis-BBOX:', err);

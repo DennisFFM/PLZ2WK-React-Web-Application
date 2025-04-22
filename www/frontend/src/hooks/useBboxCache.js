@@ -12,7 +12,6 @@ export default function useBboxCache() {
     const res = await fetch(url);
     const json = await res.json();
     cacheRef.current.set(key, json);
-    console.log('📦 [CLIENT CACHE MISS]', key);
     return json;
   };
 

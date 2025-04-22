@@ -4,17 +4,15 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  root: './', // wichtig: relativ zum frontend-Verzeichnis
+  root: './',
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'), // falls du z. B. `@/components/...` nutzt
+      '@': path.resolve(__dirname, 'src'),
     },
   },
   server: {
     port: 5173,
     host: true,
-  },
-  server: {
     proxy: {
       '/api': 'http://localhost:3001',
     }
