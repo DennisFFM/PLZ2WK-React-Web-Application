@@ -1,22 +1,16 @@
 import fs from 'fs';
 import path from 'path';
-import fetch from 'node-fetch'; // Importiere node-fetch (Version 3)
+import axios from 'axios';
 import { createWriteStream } from 'fs';
 import unzipper from 'unzipper';
 import cliProgress from 'cli-progress';
-import { pipeline } from 'stream';
-import { promisify } from 'util';
+import geodataList from '../geodata_sources.json' with { type: 'json' };
 
-// Verwenden von 'import' ohne assert, um die JSON-Datei direkt zu importieren
-import geodataList from '../geodata_sources.json' with { type: 'json' };  // Beachte, dass dies korrekt ist
-
-const streamPipeline = promisify(pipeline); // Nutze promisify, um die Pipeline als async Funktion zu verwenden
-
-// Erstelle eine Funktion zum Anzeigen des Fortschritts
+// Funktion zum Anzeigen des Fortschritts
 const downloadFileWithProgress = async (url, outputPath) => {
-  const response = await fetch(url); // Verwende fetch aus node-fetch v3
+  const response = await axios.get(url, { responseType: 'stream' });
 
-  const totalLength = response.headers.get('content-length') || 1024 * 1024; // Standard auf 1MB setzen
+  const totalLength = response.headers['content-length'] || 1024 * 1024; // Standard auf 1MB setzen
 
   const progressBar = new cliProgress.SingleBar({
     format: 'Download [{bar}] {percentage}% | {value}/{total} Bytes',
@@ -26,30 +20,21 @@ const downloadFileWithProgress = async (url, outputPath) => {
   progressBar.start(Number(totalLength), 0);
 
   const fileStream = createWriteStream(outputPath);
-  const reader = response.body.getReader();
-  let receivedLength = 0;
 
-  // Lies die Daten und schreibe sie in die Datei, während der Fortschritt angezeigt wird
-  const pump = () =>
-    reader.read().then(({ done, value }) => {
-      if (done) {
-        progressBar.stop();
-        return;
-      }
+  response.data.on('data', (chunk) => {
+    progressBar.increment(chunk.length);
+    fileStream.write(chunk);
+  });
 
-      receivedLength += value.length;
-      fileStream.write(value);
-      progressBar.update(receivedLength);
-
-      pump();
-    });
-
-  pump();
+  response.data.on('end', () => {
+    progressBar.stop();
+    fileStream.end();
+  });
 };
 
 // Lade die Geo-Daten herunter und konvertiere sie bei Bedarf
 const downloadGeoData = async () => {
-  for (const { name, url, type, output } of geodataList) {  // Zugriff auf den Inhalt der JSON-Datei
+  for (const { name, url, type, output } of geodataList) {
     console.log(`⬇️  Lade ${name}...`);
 
     const outputPath = path.resolve(output);
@@ -61,9 +46,11 @@ const downloadGeoData = async () => {
 
     try {
       if (type === 'geojson') {
+        // Wenn GeoJSON-Datei, direkt herunterladen
         await downloadFileWithProgress(url, outputPath);
         console.log(`✅ ${name} wurde heruntergeladen und gespeichert.`);
       } else if (type === 'shapefile') {
+        // Wenn Shapefile, erst als ZIP herunterladen und dann entpacken und konvertieren
         const zipPath = path.resolve(outputDir, `${name}.zip`);
         await downloadFileWithProgress(url, zipPath);
 
