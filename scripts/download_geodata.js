@@ -10,14 +10,12 @@ import cliProgress from 'cli-progress';
 import geodataList from '../geodata_sources.json' with { type: 'json' };  // Beachte, dass dies korrekt ist
 
 // Erstelle eine Funktion zum Anzeigen des Fortschritts
+// Erstelle eine Funktion zum Anzeigen des Fortschritts
 const downloadFileWithProgress = async (url, outputPath) => {
   const response = await fetch(url);
-  const totalLength = response.headers.get('content-length');
 
-  if (!totalLength) {
-    console.error('Fehler: Keine Dateigröße gefunden.');
-    return;
-  }
+  // Wenn keine Dateigröße vorhanden ist, setze eine Schätzung auf 1MB, um den Fortschritt zu berechnen
+  const totalLength = response.headers.get('content-length') || 1024 * 1024; // Standard auf 1MB setzen
 
   const progressBar = new cliProgress.SingleBar({
     format: 'Download [{bar}] {percentage}% | {value}/{total} Bytes',
@@ -27,11 +25,27 @@ const downloadFileWithProgress = async (url, outputPath) => {
   progressBar.start(Number(totalLength), 0);
 
   const fileStream = createWriteStream(outputPath);
-  const buffer = await response.buffer();  // Buffer anstelle von getReader
-  fileStream.write(buffer);
-  progressBar.update(buffer.length);
-  progressBar.stop();
+  const reader = response.body.getReader();
+  let receivedLength = 0;
+
+  // Lies die Daten und schreibe sie in die Datei, während der Fortschritt angezeigt wird
+  const pump = () =>
+    reader.read().then(({ done, value }) => {
+      if (done) {
+        progressBar.stop();
+        return;
+      }
+
+      receivedLength += value.length;
+      fileStream.write(value);
+      progressBar.update(receivedLength);
+
+      pump();
+    });
+
+  pump();
 };
+
 
 // Lade die Geo-Daten herunter und konvertiere sie bei Bedarf
 const downloadGeoData = async () => {
