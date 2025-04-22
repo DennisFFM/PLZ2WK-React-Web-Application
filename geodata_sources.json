@@ -1,0 +1,32 @@
+[
+  {
+    "name": "PLZ-Gebiete",
+    "url": "https://stg-arcgisazurecdataprod2.az.arcgis.com/exportfiles-23163-5613/PLZ_Gebiete_2313071530551189147.geojson",
+    "type": "geojson",
+    "output": "www/server/data/plz/plz.geojson"
+  },
+  {
+    "name": "Bundestagswahl 2025",
+    "url": "https://www.bundeswahlleiterin.de/dam/jcr/a3b60aa9-8fa5-4223-9fb4-0a3a3cebd7d1/btw25_geometrie_wahlkreise_vg250_shp_geo.zip",
+    "type": "shapefile",
+    "output": "www/server/data/bundestagswahlen/2025/btw25.geojson"
+  },
+  {
+    "name": "Bundestagswahl 2021",
+    "url": "https://www.bundeswahlleiterin.de/dam/jcr/4238f883-5a9b-4da6-a4d5-ac86f3752b88/btw21_geometrie_wahlkreise_vg250_geo_shp.zip",
+    "type": "shapefile",
+    "output": "www/server/data/bundestagswahlen/2021/btw21.geojson"
+  },
+  {
+    "name": "Bundestagswahl 2017",
+    "url": "https://www.bundeswahlleiterin.de/dam/jcr/8d901750-eee7-411e-8a95-90268e9d35b4/btw17_geometrie_wahlkreise_vg250_geo_shp.zip",
+    "type": "shapefile",
+    "output": "www/server/data/bundestagswahlen/2017/btw17.geojson"
+  },
+  {
+    "name": "Landtagswahl Hessen 2023",
+    "url": "https://statistik.hessen.de/sites/statistik.hessen.de/files/2024-08/hsl_landtagswahlkreise_2023.zip",
+    "type": "shapefile",
+    "output": "www/server/data/landtagswahlen/2023/ltw23.geojson"
+  }
+]

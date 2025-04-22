@@ -13,7 +13,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3001;
 const LOG_DIR = path.resolve(__dirname, '../log');
+if (!fs.existsSync(LOG_DIR)) {
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+}
 const logStream = fs.createWriteStream(path.join(LOG_DIR, 'server.log'), { flags: 'a' });
+
 
 app.use(morgan('combined', { stream: logStream }));
 app.use(cors());
