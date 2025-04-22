@@ -6,7 +6,8 @@
         "server"
     ],
     "scripts": {
-        "dev": "concurrently \"npm --prefix frontend run dev\" \"npm --prefix server run dev\""
+        "dev": "concurrently \"npm --prefix www/frontend run dev\" \"npm --prefix www/server run dev\"",
+        "install-all": "npm install && npm --prefix www/frontend install && npm --prefix www/server install"
     },
     "devDependencies": {
         "concurrently": "^9.1.2"
