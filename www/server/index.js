@@ -18,6 +18,18 @@ if (!fs.existsSync(LOG_DIR)) {
 }
 const logStream = fs.createWriteStream(path.join(LOG_DIR, 'server.log'), { flags: 'a' });
 
+// Lade geodata_sources.json einmalig beim Start
+const GEODATA_SOURCES = JSON.parse(
+  fs.readFileSync(path.resolve(process.cwd(), 'geodata_sources.json'), 'utf8')
+);
+
+// Hilfsfunktion: Liefert absoluten Pfad zu einer GeoJSON-Datei anhand ihres Namens
+function getGeojsonPathByName(name) {
+  const entry = GEODATA_SOURCES.find(e => e.name === name);
+  if (!entry || !entry.output) return null;
+  return path.resolve(process.cwd(), entry.output);
+}
+
 
 app.use(morgan('combined', { stream: logStream }));
 app.use(cors());
@@ -47,17 +59,23 @@ app.post('/api/frontend-log', (req, res) => {
 
 // ✅ /api/wahlen mit Existenzprüfung der GeoJSON-Dateien
 app.get('/api/wahlen', (req, res) => {
-  const sourcesPath = path.resolve(__dirname, '../../geodata_sources.json');
+  const sourcesPath = path.resolve(process.cwd(), 'geodata_sources.json');
   try {
     const geodataSources = JSON.parse(fs.readFileSync(sourcesPath, 'utf8'));
 
     const options = geodataSources
-      .filter(entry =>
-        entry.output.endsWith('.geojson') &&
-        entry.name &&
-        fs.existsSync(path.resolve(__dirname, entry.output.replace(/^www\/server[\\/]/, '')))
-      )
+      .filter(entry => {
+        const absPath = path.resolve(process.cwd(), entry.output); // Datei prüfen mit absolutem Pfad
+        const exists = fs.existsSync(absPath);
+        console.log(`📂 Prüfe ${entry.name}: ${absPath} → ${exists ? '✅' : '❌'}`);
+        return (
+          entry.output.endsWith('.geojson') &&
+          entry.name &&
+          exists
+        );
+      })
       .map(entry => ({
+        // Der Wert fürs Frontend wird relativ zu www/server/data/... gemacht
         value: entry.output.replace(/^www\/server[\\/]/, 'data/'),
         label: entry.name
       }));
@@ -72,6 +90,7 @@ app.get('/api/wahlen', (req, res) => {
 
 
 
+
 // ✅ Mapping-Endpunkt mit dynamischer Datei (GeoJSON)
 app.get('/api/mapping', (req, res) => {
   const rawPath = req.query.path;
@@ -80,7 +99,7 @@ app.get('/api/mapping', (req, res) => {
     return res.status(400).json({ error: 'Pfad fehlt' });
   }
 
-  const filePath = path.join(DATA_ROOT, rawPath.replace(/^data[\\/]/, ''));
+  const filePath = path.resolve(process.cwd(), 'www/server', rawPath);
 
   console.log('📥 Anfrage für:', rawPath);
   console.log('📁 Vollständiger Pfad:', filePath);
@@ -108,8 +127,10 @@ app.post('/api/map', async (req, res) => {
 
   try {
     const wahlFile = path.join(DATA_ROOT, wahlPath.replace(/^data[\\/]/, ''));
-    const plzFile = path.join(DATA_ROOT, 'plz/plz.geojson');
-
+    const plzFile = getGeojsonPathByName('PLZ-Gebiete');
+    if (!fs.existsSync(plzFile)) {
+      return res.status(404).json({ error: 'PLZ-Datei nicht gefunden' });
+    }
     const wahlGeo = JSON.parse(fs.readFileSync(wahlFile, 'utf8'));
     const plzGeo = JSON.parse(fs.readFileSync(plzFile, 'utf8'));
 
@@ -155,7 +176,7 @@ app.get('/api/file', (req, res) => {
     return res.status(400).json({ error: 'Pfad fehlt' });
   }
 
-  const filePath = path.join(DATA_ROOT, rawPath.replace(/^data[\\/]/, ''));
+  const filePath = path.resolve(process.cwd(), 'www/server', rawPath);
 
   fs.readFile(filePath, 'utf8', (err, data) => {
     if (err) {
@@ -186,7 +207,11 @@ app.get('/api/plz_bbox', (req, res) => {
     return res.json(plzCache.get(bboxKey));
   }
 
-  const filePath = path.join(DATA_ROOT, 'plz/plz.geojson');
+  const filePath = getGeojsonPathByName('PLZ-Gebiete');
+
+  if (!filePath || !fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'PLZ-Datei nicht gefunden' });
+  }
   try {
     const full = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     const bboxPolygon = turf.bboxPolygon(bbox);
@@ -220,7 +245,7 @@ app.get('/api/wahl_bbox', (req, res) => {
     return res.json(wahlCache.get(cacheKey));
   }
 
-  const filePath = path.join(DATA_ROOT, rawPath.replace(/^data[\\/]/, ''));
+  const filePath = path.resolve(process.cwd(), 'www/server', rawPath);
   try {
     const geo = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     const bboxPolygon = turf.bboxPolygon(bbox);
