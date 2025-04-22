@@ -1,16 +1,16 @@
 import fs from 'fs';
 import path from 'path';
-import axios from 'axios';
+import fetch from 'node-fetch';
 import { createWriteStream } from 'fs';
+import shp from 'shpjs'; // Importiere shpjs
 import unzipper from 'unzipper';
 import cliProgress from 'cli-progress';
 import geodataList from '../geodata_sources.json' with { type: 'json' };
 
-// Funktion zum Anzeigen des Fortschritts
+// Erstelle eine Funktion zum Anzeigen des Fortschritts
 const downloadFileWithProgress = async (url, outputPath) => {
-  const response = await axios.get(url, { responseType: 'stream' });
-
-  const totalLength = response.headers['content-length'] || 1024 * 1024; // Standard auf 1MB setzen
+  const response = await fetch(url);
+  const totalLength = response.headers.get('content-length') || 1024 * 1024; // Standard auf 1MB setzen
 
   const progressBar = new cliProgress.SingleBar({
     format: 'Download [{bar}] {percentage}% | {value}/{total} Bytes',
@@ -20,21 +20,30 @@ const downloadFileWithProgress = async (url, outputPath) => {
   progressBar.start(Number(totalLength), 0);
 
   const fileStream = createWriteStream(outputPath);
+  const reader = response.body.getReader();
+  let receivedLength = 0;
 
-  response.data.on('data', (chunk) => {
-    progressBar.increment(chunk.length);
-    fileStream.write(chunk);
-  });
+  // Lies die Daten und schreibe sie in die Datei, während der Fortschritt angezeigt wird
+  const pump = () =>
+    reader.read().then(({ done, value }) => {
+      if (done) {
+        progressBar.stop();
+        return;
+      }
 
-  response.data.on('end', () => {
-    progressBar.stop();
-    fileStream.end();
-  });
+      receivedLength += value.length;
+      fileStream.write(value);
+      progressBar.update(receivedLength);
+
+      pump();
+    });
+
+  pump();
 };
 
 // Lade die Geo-Daten herunter und konvertiere sie bei Bedarf
 const downloadGeoData = async () => {
-  for (const { name, url, type, output } of geodataList) {
+  for (const { name, url, type, output } of geodataList) {  // Zugriff auf den Inhalt der JSON-Datei
     console.log(`⬇️  Lade ${name}...`);
 
     const outputPath = path.resolve(output);
@@ -66,6 +75,8 @@ const downloadGeoData = async () => {
         }
 
         const shpFile = path.join(outputDir, shpFiles[0]);
+
+        // Konvertiere Shapefile zu GeoJSON
         const geojson = await shp(shpFile);
         const geoJsonPath = path.join(outputDir, `${name}.geojson`);
         fs.writeFileSync(geoJsonPath, JSON.stringify(geojson));
