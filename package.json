@@ -11,7 +11,8 @@
         "build": "npm --prefix www/frontend run build",
         "download_geodata": "node scripts/download_geodata.js",
         "update": "node scripts/update.js",
-        "postinstall": "npm run download_geodata"
+        "postinstall": "npm run download_geodata",
+        "deploy": "npm run deploy"
     },
     "devDependencies": {
         "concurrently": "^9.1.2"
