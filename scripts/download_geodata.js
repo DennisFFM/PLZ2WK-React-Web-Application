@@ -2,12 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
 import { createWriteStream } from 'fs';
-import { parse } from 'shpjs';
+import shp from 'shpjs'; // Importiere das gesamte shpjs-Modul
 import unzipper from 'unzipper';
 import cliProgress from 'cli-progress';
 
-// Lade die Geodaten-URL und den Pfad aus der JSON-Datei
-import geodataList from '../geodata_sources.json';
+// Verwenden von 'import' ohne assert, um die JSON-Datei direkt zu importieren
+import geodataList from '../geodata_sources.json' with { type: 'json' };  // Beachte, dass dies korrekt ist
 
 // Erstelle eine Funktion zum Anzeigen des Fortschritts
 const downloadFileWithProgress = async (url, outputPath) => {
@@ -27,30 +27,15 @@ const downloadFileWithProgress = async (url, outputPath) => {
   progressBar.start(Number(totalLength), 0);
 
   const fileStream = createWriteStream(outputPath);
-  const reader = response.body.getReader();
-  let receivedLength = 0;
-
-  // Lies die Daten und schreibe sie in die Datei, während der Fortschritt angezeigt wird
-  const pump = () =>
-    reader.read().then(({ done, value }) => {
-      if (done) {
-        progressBar.stop();
-        return;
-      }
-
-      receivedLength += value.length;
-      fileStream.write(value);
-      progressBar.update(receivedLength);
-
-      pump();
-    });
-
-  pump();
+  const buffer = await response.buffer();  // Buffer anstelle von getReader
+  fileStream.write(buffer);
+  progressBar.update(buffer.length);
+  progressBar.stop();
 };
 
 // Lade die Geo-Daten herunter und konvertiere sie bei Bedarf
 const downloadGeoData = async () => {
-  for (const { name, url, type, output } of geodataList) {
+  for (const { name, url, type, output } of geodataList) {  // Zugriff auf den Inhalt der JSON-Datei
     console.log(`⬇️  Lade ${name}...`);
 
     const outputPath = path.resolve(output);
@@ -86,8 +71,7 @@ const downloadGeoData = async () => {
         const shpFile = path.join(outputDir, shpFiles[0]);
 
         // Konvertiere Shapefile zu GeoJSON
-        const shpData = fs.readFileSync(shpFile);
-        const geojson = parse(shpData);
+        const geojson = shp.parseShp(shpFile);  // Verwende die `parseShp` Methode von shpjs
         const geoJsonPath = path.join(outputDir, `${name}.geojson`);
         fs.writeFileSync(geoJsonPath, JSON.stringify(geojson));
 
