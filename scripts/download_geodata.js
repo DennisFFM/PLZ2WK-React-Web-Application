@@ -1,71 +1,103 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
+import { createWriteStream } from 'fs';
+import { parse } from 'shpjs';
 import unzipper from 'unzipper';
-import shp from 'shpjs';
+import cliProgress from 'cli-progress';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Lade die Geodaten-URL und den Pfad aus der JSON-Datei
+import geodataList from '../geodata_sources.json';
 
-const SOURCE_PATH = path.resolve(__dirname, '../geodata_sources.json');
+// Erstelle eine Funktion zum Anzeigen des Fortschritts
+const downloadFileWithProgress = async (url, outputPath) => {
+  const response = await fetch(url);
+  const totalLength = response.headers.get('content-length');
 
-async function ensureDirExists(filePath) {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-async function downloadFile(url, targetPath) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Fehler beim Herunterladen von ${url}`);
-  const buffer = await res.buffer();
-  await ensureDirExists(targetPath);
-  fs.writeFileSync(targetPath, buffer);
-  return buffer;
-}
-
-async function processGeojson(entry) {
-  console.log(`⬇️  Lade GeoJSON: ${entry.name}`);
-  const buffer = await downloadFile(entry.url, entry.output);
-  console.log(`✅ Gespeichert: ${entry.output}`);
-}
-
-async function processShapefile(entry) {
-  console.log(`⬇️  Lade ZIP-Archiv (Shapefile): ${entry.name}`);
-  const zipBuffer = await downloadFile(entry.url, entry.output.replace(/\.geojson$/, '.zip'));
-
-  // Temporäres Entpacken im Speicher
-  const zip = await unzipper.Open.buffer(zipBuffer);
-  const files = {};
-  for (const file of zip.files) {
-    if (!file.path.match(/\.(shp|shx|dbf|prj)$/i)) continue;
-    files[file.path] = await file.buffer();
+  if (!totalLength) {
+    console.error('Fehler: Keine Dateigröße gefunden.');
+    return;
   }
 
-  // Konvertieren mit shpjs
-  const geojson = await shp.combine([await shp.parseShp(files), await shp.parseDbf(files)]);
-  await ensureDirExists(entry.output);
-  fs.writeFileSync(entry.output, JSON.stringify(geojson));
-  console.log(`✅ Konvertiert & gespeichert: ${entry.output}`);
-}
+  const progressBar = new cliProgress.SingleBar({
+    format: 'Download [{bar}] {percentage}% | {value}/{total} Bytes',
+    hideCursor: true,
+  }, cliProgress.Presets.shades_classic);
 
-async function run() {
-  const entries = JSON.parse(fs.readFileSync(SOURCE_PATH, 'utf8'));
-  for (const entry of entries) {
+  progressBar.start(Number(totalLength), 0);
+
+  const fileStream = createWriteStream(outputPath);
+  const reader = response.body.getReader();
+  let receivedLength = 0;
+
+  // Lies die Daten und schreibe sie in die Datei, während der Fortschritt angezeigt wird
+  const pump = () =>
+    reader.read().then(({ done, value }) => {
+      if (done) {
+        progressBar.stop();
+        return;
+      }
+
+      receivedLength += value.length;
+      fileStream.write(value);
+      progressBar.update(receivedLength);
+
+      pump();
+    });
+
+  pump();
+};
+
+// Lade die Geo-Daten herunter und konvertiere sie bei Bedarf
+const downloadGeoData = async () => {
+  for (const { name, url, type, output } of geodataList) {
+    console.log(`⬇️  Lade ${name}...`);
+
+    const outputPath = path.resolve(output);
+    const outputDir = path.dirname(outputPath);
+
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
     try {
-      if (entry.type === 'geojson') {
-        await processGeojson(entry);
-      } else if (entry.type === 'shapefile') {
-        await processShapefile(entry);
-      } else {
-        console.warn(`⚠️  Unbekannter Typ bei ${entry.name}: ${entry.type}`);
+      if (type === 'geojson') {
+        // Wenn GeoJSON-Datei, direkt herunterladen
+        await downloadFileWithProgress(url, outputPath);
+        console.log(`✅ ${name} wurde heruntergeladen und gespeichert.`);
+      } else if (type === 'shapefile') {
+        // Wenn Shapefile, erst als ZIP herunterladen und dann entpacken und konvertieren
+        const zipPath = path.resolve(outputDir, `${name}.zip`);
+        await downloadFileWithProgress(url, zipPath);
+
+        // Entpacken und Shapefile konvertieren
+        console.log(`⬇️ Entpacke Shapefile: ${name}`);
+        const directory = await unzipper.Open.file(zipPath);
+        await directory.extract({ path: outputDir });
+
+        // Angenommen, die Shapefiles befinden sich nach dem Entpacken im Verzeichnis
+        const shpFiles = fs.readdirSync(outputDir).filter((file) => file.endsWith('.shp'));
+
+        if (shpFiles.length === 0) {
+          console.error(`❌ Shapefile für ${name} nicht gefunden.`);
+          continue;
+        }
+
+        const shpFile = path.join(outputDir, shpFiles[0]);
+
+        // Konvertiere Shapefile zu GeoJSON
+        const shpData = fs.readFileSync(shpFile);
+        const geojson = parse(shpData);
+        const geoJsonPath = path.join(outputDir, `${name}.geojson`);
+        fs.writeFileSync(geoJsonPath, JSON.stringify(geojson));
+
+        console.log(`✅ ${name} wurde entpackt und als GeoJSON gespeichert.`);
       }
     } catch (err) {
-      console.error(`❌ Fehler bei ${entry.name}:`, err.message);
+      console.error(`❌ Fehler bei ${name}: ${err.message}`);
     }
   }
-}
+};
 
-run();
+// Starte den Download-Prozess
+downloadGeoData();
