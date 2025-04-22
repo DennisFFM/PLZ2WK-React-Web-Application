@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
 import { createWriteStream } from 'fs';
-import shp from 'shpjs'; // Importiere das gesamte shpjs-Modul
+import shp from 'shpjs'; // Wir importieren shpjs direkt
 import unzipper from 'unzipper';
 import cliProgress from 'cli-progress';
 
@@ -24,32 +24,20 @@ const downloadFileWithProgress = async (url, outputPath) => {
   progressBar.start(Number(totalLength), 0);
 
   const fileStream = createWriteStream(outputPath);
-  
-  // Hier ändern wir den Umgang mit dem Stream
   const chunks = [];
-  const reader = response.body.getReader();
-
   let receivedLength = 0;
-  
-  // Lies die Daten und speichere sie in einem Array
-  const pump = () =>
-    reader.read().then(({ done, value }) => {
-      if (done) {
-        progressBar.stop();
-        // Wenn die Datei vollständig heruntergeladen wurde, schreibe sie in die Datei
-        fileStream.write(Buffer.concat(chunks));
-        return;
-      }
 
-      // Füge die heruntergeladenen Chunks zum Array hinzu
-      chunks.push(value);
-      receivedLength += value.length;
-      progressBar.update(receivedLength);
+  // Holen wir uns den Antwort-Stream und speichern ihn in einem Buffer
+  const buffer = await response.buffer();
 
-      pump();
-    });
+  // Schreibe den Buffer in die Datei
+  fs.writeFileSync(outputPath, buffer);
 
-  pump();
+  // Berechne den Fortschritt
+  progressBar.update(buffer.length);
+  progressBar.stop();
+
+  console.log(`✅ ${outputPath} wurde heruntergeladen und gespeichert.`);
 };
 
 // Lade die Geo-Daten herunter und konvertiere sie bei Bedarf
@@ -89,8 +77,8 @@ const downloadGeoData = async () => {
 
         const shpFile = path.join(outputDir, shpFiles[0]);
 
-        // Konvertiere Shapefile zu GeoJSON
-        const geojson = shp.parseShp(shpFile);  // Verwende die `parseShp` Methode von shpjs
+        // Konvertiere Shapefile zu GeoJSON mit shpjs
+        const geojson = await shp(shpFile);  // Verwende die shpjs-Methode zum Parsen des Shapefiles
         const geoJsonPath = path.join(outputDir, `${name}.geojson`);
         fs.writeFileSync(geoJsonPath, JSON.stringify(geojson));
 
