@@ -24,19 +24,26 @@ const downloadFileWithProgress = async (url, outputPath) => {
   progressBar.start(Number(totalLength), 0);
 
   const fileStream = createWriteStream(outputPath);
+  
+  // Hier ändern wir den Umgang mit dem Stream
+  const chunks = [];
   const reader = response.body.getReader();
-  let receivedLength = 0;
 
-  // Lies die Daten und schreibe sie in die Datei, während der Fortschritt angezeigt wird
+  let receivedLength = 0;
+  
+  // Lies die Daten und speichere sie in einem Array
   const pump = () =>
     reader.read().then(({ done, value }) => {
       if (done) {
         progressBar.stop();
+        // Wenn die Datei vollständig heruntergeladen wurde, schreibe sie in die Datei
+        fileStream.write(Buffer.concat(chunks));
         return;
       }
 
+      // Füge die heruntergeladenen Chunks zum Array hinzu
+      chunks.push(value);
       receivedLength += value.length;
-      fileStream.write(value);
       progressBar.update(receivedLength);
 
       pump();
