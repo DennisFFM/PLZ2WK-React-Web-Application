@@ -30,6 +30,23 @@ function getGeojsonPathByName(name) {
   return path.resolve(process.cwd(), entry.output);
 }
 
+function resolveGeoJsonRequestPath(rawPath, { mustExist = false, throwOnMissing = false } = {}) {
+  const stripped = rawPath.replace(/^data[\\/]/, '');
+  const fullPath = path.resolve(process.cwd(), 'www/server/data', stripped);
+
+  if (mustExist && !fs.existsSync(fullPath)) {
+    const msg = `❌ Datei nicht gefunden: ${fullPath}`;
+    if (throwOnMissing) {
+      throw new Error(msg);
+    } else {
+      console.warn(msg);
+      return null;
+    }
+  }
+
+  return fullPath;
+}
+
 
 app.use(morgan('combined', { stream: logStream }));
 app.use(cors());
@@ -94,43 +111,35 @@ app.get('/api/wahlen', (req, res) => {
 // ✅ Mapping-Endpunkt mit dynamischer Datei (GeoJSON)
 app.get('/api/mapping', (req, res) => {
   const rawPath = req.query.path;
-
-  if (!rawPath) {
-    return res.status(400).json({ error: 'Pfad fehlt' });
-  }
-
-  const filePath = path.resolve(process.cwd(), 'www/server', rawPath);
-
-  console.log('📥 Anfrage für:', rawPath);
-  console.log('📁 Vollständiger Pfad:', filePath);
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'Mapping-Datei nicht gefunden' });
-  }
+  if (!rawPath) return res.status(400).json({ error: 'Pfad fehlt' });
 
   try {
-    const content = Buffer.from(fs.readFileSync(filePath)).toString('utf8');
+    const filePath = resolveGeoJsonRequestPath(rawPath, { mustExist: true, throwOnMissing: true });
+
+    const content = fs.readFileSync(filePath, 'utf8');
     const json = JSON.parse(content);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json(json);
   } catch (err) {
-    console.error('❗ Fehler beim Parsen:', err);
-    res.status(500).json({ error: 'Fehler beim Verarbeiten der Datei' });
+    console.error('Fehler bei /api/mapping:', err.message);
+    res.status(404).json({ error: 'Mapping-Datei nicht gefunden' });
   }
 });
+
 
 // ✅ Live-Mapping-Endpoint
 app.post('/api/map', async (req, res) => {
   const { wahlPath } = req.body;
-
   if (!wahlPath) return res.status(400).json({ error: 'wahlPath fehlt' });
 
   try {
-    const wahlFile = path.join(DATA_ROOT, wahlPath.replace(/^data[\\/]/, ''));
+    const wahlFile = resolveGeoJsonRequestPath(wahlPath, { mustExist: true, throwOnMissing: true });
     const plzFile = getGeojsonPathByName('PLZ-Gebiete');
+
     if (!fs.existsSync(plzFile)) {
       return res.status(404).json({ error: 'PLZ-Datei nicht gefunden' });
     }
+
     const wahlGeo = JSON.parse(fs.readFileSync(wahlFile, 'utf8'));
     const plzGeo = JSON.parse(fs.readFileSync(plzFile, 'utf8'));
 
@@ -161,39 +170,34 @@ app.post('/api/map', async (req, res) => {
         });
       }
     }
+
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json(results);
   } catch (err) {
-    console.error('Serverfehler beim Mapping:', err);
-    res.status(500).json({ error: 'Interner Serverfehler' });
+    console.error('Serverfehler bei /api/map:', err.message);
+    res.status(500).json({ error: 'Mapping fehlgeschlagen' });
   }
 });
+
 
 // ✅ Universeller Datei-Loader
 app.get('/api/file', (req, res) => {
   const rawPath = req.query.path;
-  if (!rawPath) {
-    return res.status(400).json({ error: 'Pfad fehlt' });
+  if (!rawPath) return res.status(400).json({ error: 'Pfad fehlt' });
+
+  try {
+    const filePath = resolveGeoJsonRequestPath(rawPath, { mustExist: true, throwOnMissing: true });
+
+    const data = fs.readFileSync(filePath, 'utf8');
+    const json = JSON.parse(data);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.json(json);
+  } catch (err) {
+    console.error('Fehler bei /api/file:', err.message);
+    res.status(404).json({ error: 'Datei konnte nicht geladen werden' });
   }
-
-  const filePath = path.resolve(process.cwd(), 'www/server', rawPath);
-
-  fs.readFile(filePath, 'utf8', (err, data) => {
-    if (err) {
-      console.error('Fehler beim Laden der Datei:', err);
-      return res.status(500).json({ error: 'Datei konnte nicht geladen werden' });
-    }
-
-    try {
-      const json = JSON.parse(data);
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.json(json);
-    } catch (parseErr) {
-      console.error('Fehler beim Parsen:', parseErr);
-      res.status(500).json({ error: 'Ungültiges JSON' });
-    }
-  });
 });
+
 
 // ✅ /api/plz_bbox
 app.get('/api/plz_bbox', (req, res) => {
@@ -245,26 +249,26 @@ app.get('/api/wahl_bbox', (req, res) => {
     return res.json(wahlCache.get(cacheKey));
   }
 
-  const filePath = path.resolve(process.cwd(), 'www/server', rawPath);
   try {
+    const filePath = resolveGeoJsonRequestPath(rawPath, { mustExist: true, throwOnMissing: true });
+
     const geo = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     const bboxPolygon = turf.bboxPolygon(bbox);
 
     const filtered = geo.features.filter(f => turf.booleanIntersects(f, bboxPolygon));
-
     const simplified = filtered.map(f =>
       simplify(f, { tolerance: 0.001, highQuality: false })
     );
 
     const result = { type: 'FeatureCollection', features: simplified };
-
     wahlCache.set(cacheKey, result);
     res.json(result);
   } catch (err) {
-    console.error('Fehler beim Wahlkreis-BBOX:', err);
-    res.status(500).json({ error: 'Fehler beim Laden der Datei' });
+    console.error('Fehler bei /api/wahl_bbox:', err.message);
+    res.status(500).json({ error: 'Datei konnte nicht geladen werden' });
   }
 });
+
 
 
 app.listen(PORT, () => {
