@@ -5,7 +5,6 @@ export default function useBboxCache() {
 
   const fetchGeoJson = async (key, url) => {
     if (cacheRef.current.has(key)) {
-      console.log('📦 [CLIENT CACHE HIT]', key);
       return cacheRef.current.get(key);
     }
 

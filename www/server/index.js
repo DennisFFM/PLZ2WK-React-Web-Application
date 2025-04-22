@@ -174,7 +174,6 @@ app.get('/api/plz_bbox', (req, res) => {
   const bboxKey = bbox.join(',');
 
   if (plzCache.has(bboxKey)) {
-    console.log('📦 [CACHE HIT] PLZ:', bboxKey);
     return res.json(plzCache.get(bboxKey));
   }
 
@@ -209,7 +208,6 @@ app.get('/api/wahl_bbox', (req, res) => {
   const cacheKey = `${rawPath}|${bbox.join(',')}`;
 
   if (wahlCache.has(cacheKey)) {
-    console.log('📦 [CACHE HIT] Wahl:', cacheKey);
     return res.json(wahlCache.get(cacheKey));
   }
 
