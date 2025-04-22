@@ -24,15 +24,12 @@ const GEODATA_SOURCES = JSON.parse(
 );
 
 // Hilfsfunktion: Liefert absoluten Pfad zu einer GeoJSON-Datei anhand ihres Namens
-function getGeojsonPathByName(name) {
-  const entry = GEODATA_SOURCES.find(e => e.name === name);
-  if (!entry || !entry.output) return null;
-  return path.resolve(process.cwd(), entry.output);
-}
-
 function resolveGeoJsonRequestPath(rawPath, { mustExist = false, throwOnMissing = false } = {}) {
-  const stripped = rawPath.replace(/^data[\\/]/, '');
-  const fullPath = path.resolve(process.cwd(), 'www/server/data', stripped);
+  const relativePath = rawPath.startsWith('data/')
+    ? rawPath.slice('data/'.length)
+    : rawPath;
+
+  const fullPath = path.resolve(process.cwd(), 'www/server', relativePath);
 
   if (mustExist && !fs.existsSync(fullPath)) {
     const msg = `❌ Datei nicht gefunden: ${fullPath}`;
@@ -46,6 +43,10 @@ function resolveGeoJsonRequestPath(rawPath, { mustExist = false, throwOnMissing 
 
   return fullPath;
 }
+
+
+
+
 
 
 app.use(morgan('combined', { stream: logStream }));
