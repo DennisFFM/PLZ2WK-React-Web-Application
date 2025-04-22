@@ -18,7 +18,7 @@
     },
     "dependencies": {
         "cli-progress": "^3.12.0",
-        "node-fetch": "^2.7.0",
+        "node-fetch": "^3.3.2",
         "shapefile": "^0.6.6",
         "shpjs": "^6.1.0",
         "unzipper": "^0.12.3"
