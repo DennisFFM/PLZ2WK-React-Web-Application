@@ -2,86 +2,84 @@ import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
 import { createWriteStream } from 'fs';
-import shp from 'shpjs'; // Importiere shpjs
 import unzipper from 'unzipper';
-import cliProgress from 'cli-progress';
+
+// Lade die Geodaten-URL und den Pfad aus der JSON-Datei
 import geodataList from '../geodata_sources.json' with { type: 'json' };
 
-// Erstelle eine Funktion zum Anzeigen des Fortschritts
-const downloadFileWithProgress = async (url, outputPath) => {
+// Funktion, um die Datei herunterzuladen
+const downloadFile = async (url, outputPath) => {
   const response = await fetch(url);
-  const totalLength = response.headers.get('content-length') || 1024 * 1024; // Standard auf 1MB setzen
-
-  const progressBar = new cliProgress.SingleBar({
-    format: 'Download [{bar}] {percentage}% | {value}/{total} Bytes',
-    hideCursor: true,
-  }, cliProgress.Presets.shades_classic);
-
-  progressBar.start(Number(totalLength), 0);
-
   const fileStream = createWriteStream(outputPath);
-  const reader = response.body.getReader();
-  let receivedLength = 0;
 
-  // Lies die Daten und schreibe sie in die Datei, während der Fortschritt angezeigt wird
-  const pump = () =>
-    reader.read().then(({ done, value }) => {
-      if (done) {
-        progressBar.stop();
-        return;
-      }
+  if (!response.ok) {
+    throw new Error(`Fehler beim Herunterladen der Datei: ${url}`);
+  }
 
-      receivedLength += value.length;
-      fileStream.write(value);
-      progressBar.update(receivedLength);
+  // Schreibe den Inhalt der Antwort direkt in die Datei
+  response.body.pipe(fileStream);
 
-      pump();
-    });
-
-  pump();
+  return new Promise((resolve, reject) => {
+    fileStream.on('finish', resolve);
+    fileStream.on('error', reject);
+  });
 };
 
-// Lade die Geo-Daten herunter und konvertiere sie bei Bedarf
-const downloadGeoData = async () => {
-  for (const { name, url, type, output } of geodataList) {  // Zugriff auf den Inhalt der JSON-Datei
+// Funktion zum Entpacken einer ZIP-Datei
+const extractZipFile = async (zipPath, outputDir) => {
+  try {
+    const directory = await unzipper.Open.file(zipPath);
+    await directory.extract({ path: outputDir });
+
+    // Überprüfe die entpackten Dateien und gebe sie aus
+    const files = fs.readdirSync(outputDir);
+    console.log(`Entpackte Dateien: ${files.join(', ')}`);
+
+    // Falls die Shapefile-Dateien vorhanden sind, gib den richtigen Pfad an
+    const shpFile = files.find(file => file.endsWith('.shp'));
+    if (shpFile) {
+      console.log(`Verwende Shapefile: ${path.join(outputDir, shpFile)}`);
+    } else {
+      console.error(`❌ Shapefile nicht gefunden in ${outputDir}`);
+    }
+
+  } catch (err) {
+    console.error(`Fehler beim Entpacken der Datei: ${zipPath}`, err);
+  }
+};
+
+// Funktion, um Leerzeichen im Dateinamen durch Unterstriche zu ersetzen
+const sanitizeFilename = (filename) => {
+  return filename.replace(/\s+/g, '_');
+};
+
+// Funktion zum Verarbeiten der Geodaten
+const processGeoData = async () => {
+  for (const { name, url, type, output } of geodataList) {
     console.log(`⬇️  Lade ${name}...`);
 
+    // Zielpfad für die heruntergeladene Datei
     const outputPath = path.resolve(output);
     const outputDir = path.dirname(outputPath);
 
+    // Erstelle das Verzeichnis, falls es nicht existiert
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
 
+    // Ersetze Leerzeichen durch Unterstriche im Dateinamen
+    const sanitizedName = sanitizeFilename(name);
+    const sanitizedOutputPath = path.join(outputDir, sanitizedName);
+
     try {
-      if (type === 'geojson') {
-        // Wenn GeoJSON-Datei, direkt herunterladen
-        await downloadFileWithProgress(url, outputPath);
-        console.log(`✅ ${name} wurde heruntergeladen und gespeichert.`);
-      } else if (type === 'shapefile') {
-        // Wenn Shapefile, erst als ZIP herunterladen und dann entpacken und konvertieren
-        const zipPath = path.resolve(outputDir, `${name}.zip`);
-        await downloadFileWithProgress(url, zipPath);
+      // Lade die Datei herunter
+      await downloadFile(url, sanitizedOutputPath);
+      console.log(`✅ Datei ${sanitizedName} wurde erfolgreich heruntergeladen.`);
 
-        console.log(`⬇️ Entpacke Shapefile: ${name}`);
-        const directory = await unzipper.Open.file(zipPath);
-        await directory.extract({ path: outputDir });
-
-        const shpFiles = fs.readdirSync(outputDir).filter((file) => file.endsWith('.shp'));
-
-        if (shpFiles.length === 0) {
-          console.error(`❌ Shapefile für ${name} nicht gefunden.`);
-          continue;
-        }
-
-        const shpFile = path.join(outputDir, shpFiles[0]);
-
-        // Konvertiere Shapefile zu GeoJSON
-        const geojson = await shp(shpFile);
-        const geoJsonPath = path.join(outputDir, `${name}.geojson`);
-        fs.writeFileSync(geoJsonPath, JSON.stringify(geojson));
-
-        console.log(`✅ ${name} wurde entpackt und als GeoJSON gespeichert.`);
+      // Wenn es eine ZIP-Datei ist, entpacke sie
+      if (type === 'shapefile') {
+        console.log(`⬇️ Entpacke Shapefile: ${sanitizedName}`);
+        await extractZipFile(sanitizedOutputPath, outputDir);
       }
     } catch (err) {
       console.error(`❌ Fehler bei ${name}: ${err.message}`);
@@ -89,5 +87,5 @@ const downloadGeoData = async () => {
   }
 };
 
-// Starte den Download-Prozess
-downloadGeoData();
+// Starte das Geodaten-Processing
+processGeoData();
