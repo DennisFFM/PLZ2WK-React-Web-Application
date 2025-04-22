@@ -1,7 +1,13 @@
 import fs from 'fs';
-import { createWriteStream } from 'fs';
+import path from 'path';
 import fetch from 'node-fetch';
+import { createWriteStream } from 'fs';
+import shp from 'shpjs'; // Importiere das gesamte shpjs-Modul
+import unzipper from 'unzipper';
 import cliProgress from 'cli-progress';
+
+// Verwenden von 'import' ohne assert, um die JSON-Datei direkt zu importieren
+import geodataList from '../geodata_sources.json' with { type: 'json' };  // Beachte, dass dies korrekt ist
 
 // Erstelle eine Funktion zum Anzeigen des Fortschritts
 const downloadFileWithProgress = async (url, outputPath) => {
@@ -9,6 +15,7 @@ const downloadFileWithProgress = async (url, outputPath) => {
 
   // Wenn keine Dateigröße vorhanden ist, setze eine Schätzung auf 1MB, um den Fortschritt zu berechnen
   const totalLength = response.headers.get('content-length') || 1024 * 1024; // Standard auf 1MB setzen
+
   const progressBar = new cliProgress.SingleBar({
     format: 'Download [{bar}] {percentage}% | {value}/{total} Bytes',
     hideCursor: true,
@@ -20,43 +27,73 @@ const downloadFileWithProgress = async (url, outputPath) => {
   const reader = response.body.getReader();
   let receivedLength = 0;
 
-  // Wenn die Dateigröße bekannt ist, wird der Fortschritt anhand der realen Größe berechnet
-  if (totalLength !== 1024 * 1024) {
-    const pump = () =>
-      reader.read().then(({ done, value }) => {
-        if (done) {
-          progressBar.stop();
-          return;
+  // Lies die Daten und schreibe sie in die Datei, während der Fortschritt angezeigt wird
+  const pump = () =>
+    reader.read().then(({ done, value }) => {
+      if (done) {
+        progressBar.stop();
+        return;
+      }
+
+      receivedLength += value.length;
+      fileStream.write(value);
+      progressBar.update(receivedLength);
+
+      pump();
+    });
+
+  pump();
+};
+
+// Lade die Geo-Daten herunter und konvertiere sie bei Bedarf
+const downloadGeoData = async () => {
+  for (const { name, url, type, output } of geodataList) {  // Zugriff auf den Inhalt der JSON-Datei
+    console.log(`⬇️  Lade ${name}...`);
+
+    const outputPath = path.resolve(output);
+    const outputDir = path.dirname(outputPath);
+
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    try {
+      if (type === 'geojson') {
+        // Wenn GeoJSON-Datei, direkt herunterladen
+        await downloadFileWithProgress(url, outputPath);
+        console.log(`✅ ${name} wurde heruntergeladen und gespeichert.`);
+      } else if (type === 'shapefile') {
+        // Wenn Shapefile, erst als ZIP herunterladen und dann entpacken und konvertieren
+        const zipPath = path.resolve(outputDir, `${name}.zip`);
+        await downloadFileWithProgress(url, zipPath);
+
+        // Entpacken und Shapefile konvertieren
+        console.log(`⬇️ Entpacke Shapefile: ${name}`);
+        const directory = await unzipper.Open.file(zipPath);
+        await directory.extract({ path: outputDir });
+
+        // Angenommen, die Shapefiles befinden sich nach dem Entpacken im Verzeichnis
+        const shpFiles = fs.readdirSync(outputDir).filter((file) => file.endsWith('.shp'));
+
+        if (shpFiles.length === 0) {
+          console.error(`❌ Shapefile für ${name} nicht gefunden.`);
+          continue;
         }
 
-        receivedLength += value.length;
-        fileStream.write(value);
-        progressBar.update(receivedLength);
+        const shpFile = path.join(outputDir, shpFiles[0]);
 
-        pump();
-      });
-    pump();
-  } else {
-    // Wenn die Dateigröße unbekannt ist, simulieren wir den Fortschritt, basierend auf den empfangenen Bytes
-    let lastReceivedLength = 0;
-    const pump = () =>
-      reader.read().then(({ done, value }) => {
-        if (done) {
-          progressBar.stop();
-          return;
-        }
+        // Konvertiere Shapefile zu GeoJSON
+        const geojson = shp.parseShp(shpFile);  // Verwende die `parseShp` Methode von shpjs
+        const geoJsonPath = path.join(outputDir, `${name}.geojson`);
+        fs.writeFileSync(geoJsonPath, JSON.stringify(geojson));
 
-        receivedLength += value.length;
-        fileStream.write(value);
-
-        // Schätze den Fortschritt basierend auf der Menge der empfangenen Daten
-        const progress = (receivedLength / 1024 / 1024).toFixed(2); // Schätze den Fortschritt in MB
-        progressBar.update(receivedLength);
-
-        pump();
-      });
-    pump();
+        console.log(`✅ ${name} wurde entpackt und als GeoJSON gespeichert.`);
+      }
+    } catch (err) {
+      console.error(`❌ Fehler bei ${name}: ${err.message}`);
+    }
   }
 };
 
-export default downloadFileWithProgress;
+// Starte den Download-Prozess
+downloadGeoData();
