@@ -103,7 +103,7 @@ app.post('/api/map', async (req, res) => {
 
   try {
     const wahlFile = path.join(DATA_ROOT, wahlPath.replace(/^data[\\/]/, ''));
-    const plzFile = path.join(DATA_ROOT, 'plz/PLZ_Gebiete_2313071530551189147.geojson');
+    const plzFile = path.join(DATA_ROOT, 'plz/plz.geojson');
 
     const wahlGeo = JSON.parse(fs.readFileSync(wahlFile, 'utf8'));
     const plzGeo = JSON.parse(fs.readFileSync(plzFile, 'utf8'));
@@ -181,7 +181,7 @@ app.get('/api/plz_bbox', (req, res) => {
     return res.json(plzCache.get(bboxKey));
   }
 
-  const filePath = path.join(DATA_ROOT, 'plz/PLZ_Gebiete_2313071530551189147.geojson');
+  const filePath = path.join(DATA_ROOT, 'plz/plz.geojson');
   try {
     const full = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     const bboxPolygon = turf.bboxPolygon(bbox);

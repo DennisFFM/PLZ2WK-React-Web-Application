@@ -21,7 +21,7 @@ export default function KarteEbenen() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/file?path=plz/PLZ_Gebiete_2313071530551189147.geojson')
+    fetch('/api/file?path=plz/plz.geojson')
       .then((res) => res.json())
       .then(setPlzGeo)
       .catch((err) => console.error('PLZ-GeoJSON konnte nicht geladen werden:', err));

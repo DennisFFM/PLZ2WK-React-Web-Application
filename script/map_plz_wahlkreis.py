@@ -15,7 +15,7 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent
 DATA_ROOT = SCRIPT_DIR / "data"
 OUTPUT_ROOT = PROJECT_ROOT / "www" / "server" / "data"
-PLZ_PATH = DATA_ROOT / "plz" / "PLZ_Gebiete_2313071530551189147.geojson"
+PLZ_PATH = DATA_ROOT / "plz" / "plz.geojson"
 
 # 🔐 JSON-Typ-Sicherer Konverter
 def json_safe(val):

@@ -20,7 +20,7 @@ export default function KarteMitTurf() {
         wahlRef.current = json;
       });
 
-    fetch('/api/file?path=plz/PLZ_Gebiete_2313071530551189147.geojson')
+    fetch('/api/file?path=plz/plz.geojson')
       .then((res) => res.json())
       .then((json) => {
         setPlzGeo(json);

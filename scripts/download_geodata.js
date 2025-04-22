@@ -3,6 +3,7 @@ import path from 'path';
 import fetch from 'node-fetch';
 import { createWriteStream } from 'fs';
 import unzipper from 'unzipper';
+import shp from 'shpjs'; // Um das Shapefile zu konvertieren
 
 // Lade die Geodaten-URL und den Pfad aus der JSON-Datei
 import geodataList from '../geodata_sources.json' with { type: 'json' };
@@ -35,17 +36,16 @@ const extractZipFile = async (zipPath, outputDir) => {
     const files = fs.readdirSync(outputDir);
     console.log(`Entpackte Dateien: ${files.join(', ')}`);
 
-    // Falls die Shapefile-Dateien vorhanden sind, gib den richtigen Pfad an
-    const shpFile = files.find(file => file.endsWith('.shp'));
-    if (shpFile) {
-      console.log(`Verwende Shapefile: ${path.join(outputDir, shpFile)}`);
-    } else {
-      console.error(`❌ Shapefile nicht gefunden in ${outputDir}`);
-    }
-
+    return files;
   } catch (err) {
     console.error(`Fehler beim Entpacken der Datei: ${zipPath}`, err);
   }
+};
+
+// Funktion, um die Dateiendung basierend auf dem Dateityp zu setzen
+const getFileExtensionFromURL = (url) => {
+  const extname = path.extname(url);
+  return extname || '.zip';  // Falls keine Endung vorhanden ist, standardmäßig .zip
 };
 
 // Funktion, um Leerzeichen im Dateinamen durch Unterstriche zu ersetzen
@@ -59,27 +59,45 @@ const processGeoData = async () => {
     console.log(`⬇️  Lade ${name}...`);
 
     // Zielpfad für die heruntergeladene Datei
-    const outputPath = path.resolve(output);
-    const outputDir = path.dirname(outputPath);
+    const sanitizedName = sanitizeFilename(name);  // Bereinige den Dateinamen
+    const extname = getFileExtensionFromURL(url); // Bestimme die Dateiendung
+    const outputPath = path.resolve(output); // Setze den vollen Dateipfad
+    const outputDir = path.dirname(outputPath);  // Extrahiere nur das Verzeichnis
 
     // Erstelle das Verzeichnis, falls es nicht existiert
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    // Ersetze Leerzeichen durch Unterstriche im Dateinamen
-    const sanitizedName = sanitizeFilename(name);
-    const sanitizedOutputPath = path.join(outputDir, sanitizedName);
-
     try {
       // Lade die Datei herunter
-      await downloadFile(url, sanitizedOutputPath);
-      console.log(`✅ Datei ${sanitizedName} wurde erfolgreich heruntergeladen.`);
+      await downloadFile(url, outputPath);
+      console.log(`✅ Datei ${sanitizedName}${extname} wurde erfolgreich heruntergeladen.`);
 
       // Wenn es eine ZIP-Datei ist, entpacke sie
       if (type === 'shapefile') {
-        console.log(`⬇️ Entpacke Shapefile: ${sanitizedName}`);
-        await extractZipFile(sanitizedOutputPath, outputDir);
+        console.log(`⬇️ Entpacke Shapefile: ${sanitizedName}${extname}`);
+        const files = await extractZipFile(outputPath, outputDir);
+
+        // Überprüfe die entpackten Dateien und speichere das GeoJSON an die gewünschte Stelle
+        const shpFile = files.find(file => file.endsWith('.shp'));
+        if (shpFile) {
+          const shpFilePath = path.join(outputDir, shpFile);
+          console.log(`Verwende Shapefile: ${shpFilePath}`);
+
+          // Konvertiere die Shapefile-Datei zu GeoJSON
+          const geojson = shp.parseShp(shpFilePath);
+
+          // Bestimme den Zielpfad für die GeoJSON-Datei
+          const geoJsonName = `${sanitizedName}.geojson`; // Benenne GeoJSON-Datei
+          const geoJsonPath = path.join(outputDir, geoJsonName); // Speicherort für GeoJSON
+
+          // Speichere das GeoJSON
+          fs.writeFileSync(geoJsonPath, JSON.stringify(geojson));
+          console.log(`✅ ${geoJsonName} wurde erfolgreich als GeoJSON gespeichert.`);
+        } else {
+          console.error(`❌ Shapefile für ${sanitizedName} nicht gefunden.`);
+        }
       }
     } catch (err) {
       console.error(`❌ Fehler bei ${name}: ${err.message}`);
