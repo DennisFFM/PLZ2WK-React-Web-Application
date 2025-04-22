@@ -2,8 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
 import { createWriteStream } from 'fs';
-import unzipper from 'unzipper';
-import shp from 'shpjs';
+import * as shp from 'shpjs';
 
 // Lade die Geodaten-URL und den Pfad aus der JSON-Datei
 import geodataList from '../geodata_sources.json' with { type: 'json' };
@@ -19,14 +18,6 @@ const downloadFile = async (url, outputPath) => {
     fileStream.on('finish', resolve);
     fileStream.on('error', reject);
   });
-};
-
-const extractZipFile = async (zipPath, outputDir) => {
-  const directory = await unzipper.Open.file(zipPath);
-  await directory.extract({ path: outputDir });
-  const files = fs.readdirSync(outputDir);
-  console.log(`Entpackte Dateien: ${files.join(', ')}`);
-  return files;
 };
 
 const sanitizeFilename = (filename) => filename.replace(/\s+/g, '_');
@@ -53,21 +44,11 @@ const processGeoData = async () => {
         fs.renameSync(tempPath, outputPath);
         console.log(`✅ Umbenannt zu: ${outputPath}`);
       } else if (type === 'shapefile') {
-        console.log(`⬇️ Entpacke ZIP: ${tempPath}`);
-        const files = await extractZipFile(tempPath, outputDir);
-
-        const shpFile = files.find(file => file.endsWith('.shp'));
-        if (!shpFile) {
-          console.error(`❌ Keine .shp-Datei in ZIP für ${name}`);
-          continue;
-        }
-
-        const shpFilePath = path.join(outputDir, shpFile);
-        const geojson = await shp(shpFilePath);
+        console.log(`📦 Verarbeite ZIP direkt mit shpjs.parseZip: ${tempPath}`);
+        const zipBuffer = fs.readFileSync(tempPath);
+        const geojson = await shp.parseZip(zipBuffer);
         fs.writeFileSync(outputPath, JSON.stringify(geojson));
         console.log(`✅ GeoJSON gespeichert: ${outputPath}`);
-
-        // Optional: Temp-ZIP löschen
         fs.unlinkSync(tempPath);
       } else {
         console.warn(`⚠️ Unbekannter Typ: ${type} (übersprungen)`);
