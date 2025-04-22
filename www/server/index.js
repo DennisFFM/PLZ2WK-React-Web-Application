@@ -45,27 +45,32 @@ app.post('/api/frontend-log', (req, res) => {
   res.status(200).send('OK');
 });
 
-// ✅ /api/wahlen
+// ✅ /api/wahlen mit Existenzprüfung der GeoJSON-Dateien
 app.get('/api/wahlen', (req, res) => {
-  const filePath = path.join(DATA_ROOT, 'wahldateien.csv');
-  fs.readFile(filePath, 'utf8', (err, data) => {
-    if (err) return res.status(500).json({ error: 'Datei konnte nicht gelesen werden' });
+  const sourcesPath = path.resolve(__dirname, '../../geodata_sources.json');
+  try {
+    const geodataSources = JSON.parse(fs.readFileSync(sourcesPath, 'utf8'));
 
-    const lines = data.trim().split('\n');
-    const parsed = lines
-      .map(line => line.trim())
-      .filter(line => line.includes(','))
-      .map(line => {
-        const [rawPath, rawLabel] = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
-        return {
-          value: rawPath.replace(/\\\\/g, '/'),
-          label: rawLabel
-        };
-      });
+    const options = geodataSources
+      .filter(entry =>
+        entry.output.endsWith('.geojson') &&
+        entry.name &&
+        fs.existsSync(path.resolve(__dirname, entry.output.replace(/^www\/server[\\/]/, '')))
+      )
+      .map(entry => ({
+        value: entry.output.replace(/^www\/server[\\/]/, 'data/'),
+        label: entry.name
+      }));
+
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.json(parsed);
-  });
+    res.json(options);
+  } catch (err) {
+    console.error('Fehler beim Einlesen von geodata_sources.json:', err);
+    res.status(500).json({ error: 'Konnte Wahldaten nicht laden' });
+  }
 });
+
+
 
 // ✅ Mapping-Endpunkt mit dynamischer Datei (GeoJSON)
 app.get('/api/mapping', (req, res) => {
