@@ -4,12 +4,11 @@ import * as turf from '@turf/turf';
 import MouseTracker from './MouseTracker';
 import useBboxCache from '../hooks/useBboxCache';
 
-// Hilfsfunktion: generiert rudimentären Feature-Fingerprint
 function featureKey(f) {
   return JSON.stringify(f.geometry) + JSON.stringify(f.properties);
 }
 
-export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, setClickedFeatures }) {
+export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, setClickedFeatures, nurPlzInnerhalbWahl }) {
   const map = useMap();
   const { fetchGeoJson } = useBboxCache();
 
@@ -19,7 +18,6 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
   const plzSeen = useRef(new Set());
   const wahlSeen = useRef(new Set());
 
-  // 🧹 Lösche vorherige Wahlkreis-Daten beim Wechsel
   useEffect(() => {
     wahlSeen.current.clear();
     setWahlFeatures([]);
@@ -27,11 +25,13 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
 
   const showPlzRef = useRef(showPlz);
   const showWahlRef = useRef(showWahl);
+  const nurPlzRef = useRef(nurPlzInnerhalbWahl);
 
   useEffect(() => {
     showPlzRef.current = showPlz;
     showWahlRef.current = showWahl;
-  }, [showPlz, showWahl]);
+    nurPlzRef.current = nurPlzInnerhalbWahl;
+  }, [showPlz, showWahl, nurPlzInnerhalbWahl]);
 
   const fetchByBbox = () => {
     const b = map.getBounds();
@@ -40,8 +40,12 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
     const bbox = rounded.join(',');
 
     if (showPlzRef.current) {
-      const key = `plz|${bbox}`;
-      fetchGeoJson(key, `/api/plz_bbox?bbox=${bbox}`).then((geojson) => {
+      const plzParams = new URLSearchParams({ bbox });
+      if (nurPlzRef.current && wahlPath) {
+        plzParams.append('wahlPath', wahlPath);
+      }
+      const key = `plz|${bbox}|${nurPlzRef.current ? wahlPath : ''}`;
+      fetchGeoJson(key, `/api/plz_bbox?${plzParams.toString()}`).then((geojson) => {
         const newFeatures = geojson.features.filter(f => {
           const hash = featureKey(f);
           if (plzSeen.current.has(hash)) return false;
@@ -68,15 +72,15 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
 
   useEffect(() => {
     if (!map) return;
-    fetchByBbox(); // initial
+    fetchByBbox();
     map.on('moveend', fetchByBbox);
     return () => map.off('moveend', fetchByBbox);
   }, [map, wahlPath]);
 
   useEffect(() => {
     if (!map) return;
-    fetchByBbox(); // bei Checkbox-Wechsel
-  }, [showPlz, showWahl]);
+    fetchByBbox();
+  }, [showPlz, showWahl, nurPlzInnerhalbWahl]);
 
   return (
     <>

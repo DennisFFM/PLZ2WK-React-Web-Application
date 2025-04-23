@@ -7,6 +7,7 @@ export default function KarteMitSidebar() {
   const [clickedFeatures, setClickedFeatures] = useState([]);
   const [showPlz, setShowPlz] = useState(false);
   const [showWahl, setShowWahl] = useState(false);
+  const [nurPlzInnerhalbWahl, setNurPlzInnerhalbWahl] = useState(false);
   const [wahlPath, setWahlPath] = useState('');
   const [wahlOptions, setWahlOptions] = useState([]);
   const activeWahlLabel = wahlOptions.find(opt => opt.value === wahlPath)?.label || '';
@@ -49,7 +50,7 @@ export default function KarteMitSidebar() {
           </select>
         </div>
 
-        <div className="flex gap-6">
+        <div className="flex flex-col gap-2 sm:gap-6 sm:flex-row">
           <label className="inline-flex items-center">
             <input type="checkbox" checked={showWahl} onChange={() => setShowWahl(!showWahl)} className="mr-2" />
             Wahlkreise anzeigen
@@ -57,6 +58,16 @@ export default function KarteMitSidebar() {
           <label className="inline-flex items-center">
             <input type="checkbox" checked={showPlz} onChange={() => setShowPlz(!showPlz)} className="mr-2" />
             Postleitzahlen anzeigen
+          </label>
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              checked={nurPlzInnerhalbWahl}
+              onChange={() => setNurPlzInnerhalbWahl(!nurPlzInnerhalbWahl)}
+              className="mr-2"
+              disabled={!showPlz || !wahlPath}
+            />
+            Nur PLZ innerhalb Wahlgebiete
           </label>
         </div>
       </div>
@@ -81,6 +92,7 @@ export default function KarteMitSidebar() {
             showPlz={showPlz}
             showWahl={showWahl && wahlPath !== ''}
             wahlPath={wahlPath}
+            nurPlzInnerhalbWahl={nurPlzInnerhalbWahl}
             setHoverInfo={setHoverInfo}
             setClickedFeatures={setClickedFeatures}
           />
