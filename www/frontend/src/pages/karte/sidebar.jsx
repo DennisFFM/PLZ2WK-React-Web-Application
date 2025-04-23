@@ -7,7 +7,7 @@ export default function KarteMitSidebar() {
   const [clickedFeatures, setClickedFeatures] = useState([]);
   const [showPlz, setShowPlz] = useState(false);
   const [showWahl, setShowWahl] = useState(false);
-  const [nurPlzInnerhalbWahl, setNurPlzInnerhalbWahl] = useState(false);
+  const [plzImWahlgebiet, setPlzImWahlgebiet] = useState(false);
   const [wahlPath, setWahlPath] = useState('');
   const [wahlOptions, setWahlOptions] = useState([]);
   const activeWahlLabel = wahlOptions.find(opt => opt.value === wahlPath)?.label || '';
@@ -62,12 +62,11 @@ export default function KarteMitSidebar() {
           <label className="inline-flex items-center">
             <input
               type="checkbox"
-              checked={nurPlzInnerhalbWahl}
-              onChange={() => setNurPlzInnerhalbWahl(!nurPlzInnerhalbWahl)}
+              checked={plzImWahlgebiet}
+              onChange={() => setPlzImWahlgebiet(!plzImWahlgebiet)}
               className="mr-2"
-              disabled={!showPlz || !wahlPath}
+              disabled={!showPlz}
             />
-            Nur PLZ innerhalb Wahlgebiete
           </label>
         </div>
       </div>
@@ -92,7 +91,7 @@ export default function KarteMitSidebar() {
             showPlz={showPlz}
             showWahl={showWahl && wahlPath !== ''}
             wahlPath={wahlPath}
-            nurPlzInnerhalbWahl={nurPlzInnerhalbWahl}
+            plzImWahlgebiet={plzImWahlgebiet}
             setHoverInfo={setHoverInfo}
             setClickedFeatures={setClickedFeatures}
           />

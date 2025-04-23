@@ -8,7 +8,7 @@ function featureKey(f) {
   return JSON.stringify(f.geometry) + JSON.stringify(f.properties);
 }
 
-export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, setClickedFeatures, nurPlzInnerhalbWahl }) {
+export default function BboxLayers({ showPlz, showWahl, wahlPath, plzImWahlgebiet, setHoverInfo, setClickedFeatures }) {
   const map = useMap();
   const { fetchGeoJson } = useBboxCache();
 
@@ -40,11 +40,11 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
     const bbox = rounded.join(',');
   
     if (showPlzRef.current) {
-      const key = `plz|${bbox}|${nurPlzInnerhalbWahl ? wahlPath : ''}`;
-      let url = `/api/plz_bbox?bbox=${bbox}`;
-      if (nurPlzInnerhalbWahl && wahlPath) {
-        url += `&wahlPath=${encodeURIComponent(wahlPath)}`;
-      }
+      const key = `plz|${bbox}|${plzImWahlgebiet ? wahlPath : 'all'}`;
+      const url = plzImWahlgebiet
+        ? `/api/plz_bbox?bbox=${bbox}&wahlPath=${encodeURIComponent(wahlPath)}`
+        : `/api/plz_bbox?bbox=${bbox}`;
+    
       fetchGeoJson(key, url).then((geojson) => {
         const newFeatures = geojson.features.filter(f => {
           const hash = featureKey(f);
@@ -69,6 +69,7 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
       });
     }
   };
+  
   
 
   useEffect(() => {
