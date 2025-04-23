@@ -38,14 +38,14 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
     const bboxArr = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
     const rounded = bboxArr.map(n => Math.round(n));
     const bbox = rounded.join(',');
-
+  
     if (showPlzRef.current) {
-      const plzParams = new URLSearchParams({ bbox });
-      if (nurPlzRef.current && wahlPath) {
-        plzParams.append('wahlPath', wahlPath);
+      const key = `plz|${bbox}|${nurPlzInnerhalbWahl ? wahlPath : ''}`;
+      let url = `/api/plz_bbox?bbox=${bbox}`;
+      if (nurPlzInnerhalbWahl && wahlPath) {
+        url += `&wahlPath=${encodeURIComponent(wahlPath)}`;
       }
-      const key = `plz|${bbox}|${nurPlzRef.current ? wahlPath : ''}`;
-      fetchGeoJson(key, `/api/plz_bbox?${plzParams.toString()}`).then((geojson) => {
+      fetchGeoJson(key, url).then((geojson) => {
         const newFeatures = geojson.features.filter(f => {
           const hash = featureKey(f);
           if (plzSeen.current.has(hash)) return false;
@@ -55,7 +55,7 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
         setPlzFeatures(prev => [...prev, ...newFeatures]);
       });
     }
-
+  
     if (showWahlRef.current) {
       const key = `wahl|${wahlPath}|${bbox}`;
       fetchGeoJson(key, `/api/wahl_bbox?path=${wahlPath}&bbox=${bbox}`).then((geojson) => {
@@ -69,6 +69,7 @@ export default function BboxLayers({ showPlz, showWahl, wahlPath, setHoverInfo, 
       });
     }
   };
+  
 
   useEffect(() => {
     if (!map) return;

@@ -162,48 +162,76 @@ app.get('/api/file', (req, res) => {
   }
 });
 
+import geojsonRbush from 'geojson-rbush';
+
 app.get('/api/plz_bbox', (req, res) => {
-  const { bbox: bboxParam, wahlPath } = req.query;
+  const bboxParam = req.query.bbox;
+  const wahlPath = req.query.wahlPath;
+
   if (!bboxParam) return res.status(400).json({ error: 'bbox fehlt' });
 
   const bbox = normalizeBbox(bboxParam.split(',').map(parseFloat));
-  const bboxKey = [bboxParam, wahlPath || ''].join('|');
+  const cacheKey = `plz|${bbox.join(',')}${wahlPath ? `|${wahlPath}` : ''}`;
 
-  if (plzCache.has(bboxKey)) {
-    return res.json(plzCache.get(bboxKey));
+  if (plzCache.has(cacheKey)) {
+    return res.json(plzCache.get(cacheKey));
   }
 
-  const filePath = getGeojsonPathByName('PLZ-Gebiete');
-  if (!filePath || !fs.existsSync(filePath)) {
+  const plzFile = getGeojsonPathByName('PLZ-Gebiete');
+  if (!plzFile || !fs.existsSync(plzFile)) {
     return res.status(404).json({ error: 'PLZ-Datei nicht gefunden' });
   }
 
   try {
-    const full = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const start = Date.now();
+
+    const plzGeo = JSON.parse(fs.readFileSync(plzFile, 'utf8'));
     const bboxPolygon = turf.bboxPolygon(bbox);
 
-    let filtered = full.features.filter(f => turf.booleanIntersects(f, bboxPolygon));
+    // Nur PLZ innerhalb der BBOX
+    let plzFeatures = plzGeo.features.filter(f => turf.booleanIntersects(f, bboxPolygon));
+    console.log(`📦 ${plzFeatures.length} PLZ nach BBOX`);
 
     if (wahlPath) {
-      const wahlFilePath = resolveGeoJsonRequestPath(wahlPath);
-      if (fs.existsSync(wahlFilePath)) {
-        const wahlGeo = JSON.parse(fs.readFileSync(wahlFilePath, 'utf8'));
-        filtered = filtered.filter(plz =>
-          wahlGeo.features.some(wahl => turf.booleanIntersects(plz, wahl))
-        );
+      const wahlFile = resolveGeoJsonRequestPath(wahlPath);
+      if (!fs.existsSync(wahlFile)) {
+        return res.status(404).json({ error: 'Wahlkreis-Datei nicht gefunden' });
       }
+
+      const wahlGeo = JSON.parse(fs.readFileSync(wahlFile, 'utf8'));
+      const index = geojsonRbush();
+      index.load(wahlGeo);
+      console.log(`📊 Index enthält ${wahlGeo.features.length} Wahlkreise`);
+
+      const t0 = Date.now();
+      plzFeatures = plzFeatures.filter(plz => {
+        const candidates = index.search(plz);
+        return candidates.some(wahl => turf.booleanIntersects(plz, wahl));
+      });
+      const t1 = Date.now();
+      console.log(`🧠 Spatial filter für ${plzFeatures.length} PLZ: ${t1 - t0}ms`);
     }
 
-    const simplified = filtered.map(f => simplify(f, { tolerance: 0.001, highQuality: false }));
+
+    const simplified = plzFeatures.map(f =>
+      simplify(f, { tolerance: 0.001, highQuality: false })
+    );
+
     const result = { type: 'FeatureCollection', features: simplified };
 
-    plzCache.set(bboxKey, result);
+    plzCache.set(cacheKey, result);
+
+    const end = Date.now();
+    console.log(`⏱️ /api/plz_bbox (indexed) in ${end - start}ms [${plzFeatures.length} PLZ]`);
     res.json(result);
   } catch (err) {
-    console.error('Fehler beim /api/plz_bbox:', err.message);
+    console.error('❌ Fehler bei /api/plz_bbox:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 });
+
+
+
 
 app.get('/api/wahl_bbox', (req, res) => {
   const { path: rawPath, bbox: bboxParam } = req.query;
